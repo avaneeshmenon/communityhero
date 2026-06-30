@@ -155,6 +155,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Ensure category and locality filters default to 'All' on load/reload once user is signed in
+  useEffect(() => {
+    if (user) {
+      setSelectedCategory('All');
+      setSelectedLocality('All');
+    }
+  }, [user]);
+
   // Geolocation detection effect on load
   useEffect(() => {
     if (navigator.geolocation) {
