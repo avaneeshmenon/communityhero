@@ -88,10 +88,9 @@ export default function CivicIntelligenceDashboard({ reports, onBack }: CivicInt
       resolvedWithTimeCount++;
     }
   });
-  const avgTimeToResolutionValue = resolvedWithTimeCount > 0 
-    ? (totalResolvedTime / resolvedWithTimeCount / (24 * 3600 * 1000)).toFixed(1)
-    : '2.8';
-  const avgTimeToResolution = `${avgTimeToResolutionValue} days`;
+  const avgTimeToResolution = resolvedWithTimeCount > 0 
+    ? `${(totalResolvedTime / resolvedWithTimeCount / (24 * 3600 * 1000)).toFixed(1)} days`
+    : '-';
 
   // Department counts
   const departmentCounts: Record<string, number> = {};
