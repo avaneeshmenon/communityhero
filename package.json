@@ -18,6 +18,8 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.15.0",
+    "heic-convert": "^2.1.0",
+    "heic2any": "^0.0.4",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^0.546.0",

@@ -72,6 +72,7 @@ import {
 
 import { UseId as useIdReact } from 'react';
 import PinPickerMap from './PinPickerMap';
+import { isHeicFile, convertHeicToJpeg } from '../lib/heicConverter';
 
 interface ReportFormProps {
   isOpen: boolean;
@@ -111,18 +112,50 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
     setLocationEdited(true);
   };
 
+  const isValidLocality = (name: string) => {
+    if (!name) return false;
+    const trimmed = name.trim();
+    if (trimmed.toLowerCase() === 'other') return false; // Filter 'Other' as we render it explicitly
+    if (trimmed.length < 3 || trimmed.length > 40) return false;
+    const lower = trimmed.toLowerCase();
+    const badKeywords = [
+      'river', 'basin', 'valley', 'district', 'subdivision', 'state', 'country', 
+      'province', 'republic', 'continent', 'division', 'region', 'zone', 
+      'county', 'municipality', 'governorate', 'prefecture', 'department',
+      'taluka', 'tehsil', 'taluk', 'mandal', 'subdistrict', 'sub-district', 
+      'municipal', 'corporation', 'administrative', 'union territory', 
+      'cantonment', 'national park', 'lake', 'bay', 'ocean', 'sea', 'india', 
+      'maharashtra', 'kerala', 'pune', 'bengaluru', 'mumbai', 'delhi', 'chennai', 
+      'kolkata', 'karnataka', 'tamil nadu', 'gujarat', 'rajasthan', 'punjab', 
+      'goa', 'bihar', 'assam', 'haryana', 'himachal', 'jharkhand', 'manipur', 
+      'meghalaya', 'mizoram', 'nagaland', 'odisha', 'sikkim', 'tripura', 
+      'uttarakhand', 'telangana', 'andhra', 'ladakh', 'jammu', 'kashmir', 'lakshadweep',
+      'puducherry', 'chandigarh', 'dadra', 'nagar haveli', 'daman', 'diu', 'western zonal'
+    ];
+    if (badKeywords.some(kw => lower.includes(kw) || kw.includes(lower))) return false;
+    if (/\d/.test(lower)) return false; // reject if has digits
+    return true;
+  };
+
   const handleLocalityDetected = (detectedLoc: string, detectedCity: string, detectedLocalities: string[]) => {
     if (detectedCity) {
       setCity(detectedCity);
     }
-    if (detectedLoc) {
-      setLocality(detectedLoc);
-      setSelectedDropdownValue(detectedLoc);
+    
+    const validLoc = detectedLoc && detectedLoc !== 'Other' && isValidLocality(detectedLoc) ? detectedLoc : null;
+    if (validLoc) {
+      setLocality(validLoc);
+      setSelectedDropdownValue(validLoc);
+    } else {
+      setSelectedDropdownValue('Other');
+      setLocality(customLocalityText || 'Other');
     }
-    if (detectedLocalities && Array.isArray(detectedLocalities) && detectedLocalities.length > 0) {
-      setDetectedLocalities(detectedLocalities);
+
+    if (detectedLocalities && Array.isArray(detectedLocalities)) {
+      const filtered = detectedLocalities.filter(l => l !== 'Other' && isValidLocality(l));
+      setDetectedLocalities(filtered);
       if (onDetectedLocalities) {
-        onDetectedLocalities(detectedLocalities);
+        onDetectedLocalities(filtered);
       }
     }
   };
@@ -131,6 +164,7 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
   const [compressedImages, setCompressedImages] = useState<string[]>([]);
   const [imageWarningMsg, setImageWarningMsg] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isConvertingImage, setIsConvertingImage] = useState(false);
 
   // Status/Loading States
   const [loading, setLoading] = useState(false);
@@ -512,15 +546,7 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
           const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
           if (res.ok) {
             const data = await res.json();
-            if (data.city) {
-              setCity(data.city);
-            }
-            if (data.localities && Array.isArray(data.localities)) {
-              setDetectedLocalities(data.localities);
-              if (onDetectedLocalities) {
-                onDetectedLocalities(data.localities);
-              }
-            }
+            handleLocalityDetected(data.locality, data.city, data.localities);
           }
         } catch (err) {
           console.warn('Reverse geocode failed:', err);
@@ -547,17 +573,19 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
 
   const defaultLocalities = ['Bavdhan', 'Kothrud', 'Aundh', 'Baner', 'Pashan', 'Wakad'];
   const localitiesSet = new Set<string>();
-  if (propsLocalities) {
+  if (propsLocalities && propsLocalities.length > 0) {
     propsLocalities.forEach(loc => {
-      if (loc && loc !== 'All' && loc !== 'Other') localitiesSet.add(loc);
+      if (loc && loc !== 'All' && loc !== 'Other' && isValidLocality(loc)) {
+        localitiesSet.add(loc);
+      }
+    });
+  } else {
+    defaultLocalities.forEach(loc => {
+      if (loc && isValidLocality(loc)) {
+        localitiesSet.add(loc);
+      }
     });
   }
-  detectedLocalities.forEach(loc => {
-    if (loc && loc !== 'Other') localitiesSet.add(loc);
-  });
-  defaultLocalities.forEach(loc => {
-    if (loc) localitiesSet.add(loc);
-  });
   const localities = Array.from(localitiesSet);
 
   // Handle taxonomy changes
@@ -788,11 +816,23 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
     try {
       const newCompressed: string[] = [];
       for (let i = 0; i < filesToProcess.length; i++) {
-        const file = filesToProcess[i];
+        let file = filesToProcess[i];
         if (file.type.startsWith('video/')) {
           setImageWarningMsg('Video uploads are coming soon — please attach a photo.');
           continue;
         }
+
+        if (isHeicFile(file)) {
+          setIsConvertingImage(true);
+          try {
+            file = await convertHeicToJpeg(file);
+          } catch (convErr: any) {
+            setIsConvertingImage(false);
+            throw convErr;
+          }
+          setIsConvertingImage(false);
+        }
+
         const compressedUrl = await compressImageFile(file);
         newCompressed.push(compressedUrl);
       }
@@ -813,9 +853,10 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
         setIsAnalyzingImage(false);
       }
     } catch (err: any) {
-      console.warn('Compression failed for file:', err);
+      console.warn('Compression or conversion failed for file:', err);
       setErrorMsg(err.message || 'Image compression failed.');
       setIsAnalyzingImage(false);
+      setIsConvertingImage(false);
     }
   };
 
@@ -996,6 +1037,19 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
 
         {/* Form Body */}
         <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+          {/* If HEIC conversion is in progress */}
+          {isConvertingImage && (
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 flex items-center space-x-3 text-indigo-850 animate-pulse">
+              <Loader2 className="h-5 w-5 animate-spin text-indigo-600 shrink-0" />
+              <div className="font-sans text-xs">
+                <span className="font-bold">Converting image...</span>
+                <p className="text-[10px] text-indigo-500 mt-0.5 font-medium leading-relaxed font-sans">
+                  Converting iPhone HEIC photo to JPEG for processing...
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* If AI analyzed or is analyzing, show an elegant badge */}
           {isAnalyzingImage && (
             <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 flex items-center space-x-3 text-indigo-850 animate-pulse">
@@ -1311,16 +1365,30 @@ export default function ReportForm({ isOpen, onClose, user, onSuccess, localitie
                 className="hidden"
               />
               <div className="flex flex-col items-center space-y-1.5 text-slate-550">
-                <div className="flex space-x-2.5 text-slate-450">
-                  <ImageIcon className="h-5 w-5 text-indigo-500" />
-                  <Camera className="h-5 w-5 text-emerald-500" />
-                </div>
-                <p className="font-sans text-xs font-medium text-slate-700">
-                  Drag & Drop photos here, or <span className="text-indigo-600 underline">browse / select files</span>
-                </p>
-                <p className="font-sans text-[10px] text-slate-400">
-                  Attach up to 5 photos. The first photo is used for AI intake.
-                </p>
+                {isConvertingImage ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin text-indigo-650" />
+                    <p className="font-sans text-xs font-bold text-indigo-600 uppercase tracking-wider animate-pulse">
+                      Converting image...
+                    </p>
+                    <p className="font-sans text-[10px] text-slate-400">
+                      Converting iPhone HEIC format to standard JPEG format...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex space-x-2.5 text-slate-450">
+                      <ImageIcon className="h-5 w-5 text-indigo-500" />
+                      <Camera className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <p className="font-sans text-xs font-medium text-slate-700">
+                      Drag & Drop photos here, or <span className="text-indigo-600 underline">browse / select files</span>
+                    </p>
+                    <p className="font-sans text-[10px] text-slate-400">
+                      Attach up to 5 photos. The first photo is used for AI intake.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 

@@ -52,6 +52,7 @@ import { evaluateAndAwardBadges, sendNotification } from '../lib/badgeService';
 import { Report, Comment, Reply, UserDoc, IssueStatus } from '../types';
 import { User } from 'firebase/auth';
 import { generateEscalationTrailStep } from '../lib/escalationTrailService';
+import { isHeicFile, convertHeicToJpeg } from '../lib/heicConverter';
 
 interface ReportCardProps {
   key?: string;
@@ -88,6 +89,7 @@ export default function ReportCard({ report, user, currentUserDoc, onSelect, onD
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [afterImageFile, setAfterImageFile] = useState<string | null>(null);
   const [compressingAfter, setCompressingAfter] = useState(false);
+  const [isConvertingAfter, setIsConvertingAfter] = useState(false);
 
   // NEW: Multi-after photo states
   const [selectedAfterImages, setSelectedAfterImages] = useState<string[]>([]);
@@ -881,11 +883,24 @@ export default function ReportCard({ report, user, currentUserDoc, onSelect, onD
   };
 
   // Manual After Image select and compression
-  const handleAfterImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAfterImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    let file = e.target.files?.[0];
     if (!file) return;
 
     setCompressingAfter(true);
+    setIsConvertingAfter(true);
+    try {
+      if (isHeicFile(file)) {
+        file = await convertHeicToJpeg(file);
+      }
+    } catch (convErr: any) {
+      setIsConvertingAfter(false);
+      setCompressingAfter(false);
+      setAfterUploadError(convErr.message || "Couldn't process this image, please try another photo or a screenshot");
+      return;
+    }
+    setIsConvertingAfter(false);
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -1055,20 +1070,34 @@ export default function ReportCard({ report, user, currentUserDoc, onSelect, onD
     try {
       const newCompressed: string[] = [];
       for (let i = 0; i < filesToProcess.length; i++) {
-        const file = filesToProcess[i];
-        if (!file.type.startsWith('image/')) {
-          setAfterUploadError('Please select image files only.');
-          continue;
+        let file = filesToProcess[i];
+        
+        if (isHeicFile(file)) {
+          setIsConvertingAfter(true);
+          try {
+            file = await convertHeicToJpeg(file);
+          } catch (convErr: any) {
+            setIsConvertingAfter(false);
+            throw convErr;
+          }
+          setIsConvertingAfter(false);
+        } else {
+          if (!file.type.startsWith('image/')) {
+            setAfterUploadError('Please select image files only.');
+            continue;
+          }
         }
+
         const compressedUrl = await compressImageFile(file);
         newCompressed.push(compressedUrl);
       }
       setSelectedAfterImages((prev) => [...prev, ...newCompressed]);
     } catch (err: any) {
-      console.warn('After image compression failed:', err);
+      console.warn('After image compression or conversion failed:', err);
       setAfterUploadError(err.message || 'Image compression failed.');
     } finally {
       setCompressingAfter(false);
+      setIsConvertingAfter(false);
     }
   };
 
@@ -1882,6 +1911,13 @@ export default function ReportCard({ report, user, currentUserDoc, onSelect, onD
                     className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[11px] file:font-black file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer disabled:opacity-50"
                   />
                 </label>
+
+                {isConvertingAfter && (
+                  <div className="flex items-center space-x-1.5 text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider animate-pulse">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Converting image format...</span>
+                  </div>
+                )}
 
                 {compressingAfter && (
                   <div className="flex items-center space-x-1.5 text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider animate-pulse">

@@ -522,18 +522,27 @@ export default function App() {
   ];
 
   const isValidLocality = (name: string) => {
-    if (!name || name.trim().length < 3 || name.length > 40) return false;
-    const lower = name.toLowerCase();
+    if (!name) return false;
+    const trimmed = name.trim();
+    if (trimmed.toLowerCase() === 'other') return false; // Filter "Other" as we explicitly append it at the end
+    if (trimmed.length < 3 || trimmed.length > 40) return false;
+    const lower = trimmed.toLowerCase();
     const badKeywords = [
       'river', 'basin', 'valley', 'district', 'subdivision', 'state', 'country', 
       'province', 'republic', 'continent', 'division', 'region', 'zone', 
       'county', 'municipality', 'governorate', 'prefecture', 'department',
       'taluka', 'tehsil', 'taluk', 'mandal', 'subdistrict', 'sub-district', 
       'municipal', 'corporation', 'administrative', 'union territory', 
-      'cantonment', 'national park', 'lake', 'bay', 'ocean', 'sea', 'india', 'maharashtra', 'pune', 'western zonal'
+      'cantonment', 'national park', 'lake', 'bay', 'ocean', 'sea', 'india', 
+      'maharashtra', 'kerala', 'pune', 'bengaluru', 'mumbai', 'delhi', 'chennai', 
+      'kolkata', 'karnataka', 'tamil nadu', 'gujarat', 'rajasthan', 'punjab', 
+      'goa', 'bihar', 'assam', 'haryana', 'himachal', 'jharkhand', 'manipur', 
+      'meghalaya', 'mizoram', 'nagaland', 'odisha', 'sikkim', 'tripura', 
+      'uttarakhand', 'telangana', 'andhra', 'ladakh', 'jammu', 'kashmir', 'lakshadweep',
+      'puducherry', 'chandigarh', 'dadra', 'nagar haveli', 'daman', 'diu', 'western zonal'
     ];
-    if (badKeywords.some(kw => lower.includes(kw))) return false;
-    if (/\d/.test(lower)) return false; // reject if has digits (e.g. postcodes/street numbers)
+    if (badKeywords.some(kw => lower.includes(kw) || kw.includes(lower))) return false;
+    if (/\d/.test(lower)) return false; // reject if has digits
     return true;
   };
 
@@ -568,87 +577,90 @@ export default function App() {
     return null;
   };
 
-  // Combine unique report localities and the default Pune localities
   const fallbackDefaults = ['Bavdhan', 'Kothrud', 'Aundh', 'Baner', 'Pashan', 'Wakad'];
-  const candidateLocalities = Array.from(new Set([
-    ...uniqueReportLocalities,
-    ...fallbackDefaults
-  ]));
-
-  // Build a map of locality -> distance (km)
-  const localityDistanceMap: { [key: string]: number } = {};
-  if (userCoords) {
-    candidateLocalities.forEach((loc) => {
-      const coords = getLocalityCoords(loc);
-      if (coords) {
-        localityDistanceMap[loc.toLowerCase()] = getDistanceKm(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
-      } else {
-        localityDistanceMap[loc.toLowerCase()] = Infinity;
-      }
-    });
-  }
-
-  // Deduplicate and filter candidates
-  const nearLocalities: string[] = [];
+  const nearLocalitiesList: string[] = [];
   const mergedLowerSet = new Set<string>();
 
-  // Add user's locality first
-  if (userLocality && isValidLocality(userLocality)) {
-    nearLocalities.push(userLocality);
-    mergedLowerSet.add(userLocality.toLowerCase());
-  }
-
-  // Filter other candidate localities
-  const otherCandidates = candidateLocalities.filter(loc => {
-    if (!isValidLocality(loc)) return false;
-    if (userLocality && loc.toLowerCase() === userLocality.toLowerCase()) return false;
-    
-    // If user has coords, keep if within roughly 15 km
-    if (userCoords) {
-      const dist = localityDistanceMap[loc.toLowerCase()];
-      return dist !== undefined && dist <= 15;
-    }
-    return true; // keep all if no coords
-  });
-
-  if (userCoords) {
-    // Sort other candidates by distance from user
-    otherCandidates.sort((a, b) => {
-      const distA = localityDistanceMap[a.toLowerCase()] ?? Infinity;
-      const distB = localityDistanceMap[b.toLowerCase()] ?? Infinity;
-      return distA - distB;
-    });
-  } else {
-    // Sort alphabetically if no user coordinates
-    otherCandidates.sort((a, b) => a.localeCompare(b));
-  }
-
-  // Add sorted candidates to the sidebar list
-  otherCandidates.forEach(loc => {
-    if (!mergedLowerSet.has(loc.toLowerCase())) {
-      nearLocalities.push(loc);
-      mergedLowerSet.add(loc.toLowerCase());
-    }
-  });
-
-  // Safe fallback if nearLocalities is absolutely empty
-  if (nearLocalities.length === 0) {
-    fallbackDefaults.forEach(loc => {
-      if (!mergedLowerSet.has(loc.toLowerCase()) && isValidLocality(loc)) {
-        nearLocalities.push(loc);
-        mergedLowerSet.add(loc.toLowerCase());
+  // 1. If we have user geolocated/detected localities, prioritize them!
+  if (userDetectedLocalities && userDetectedLocalities.length > 0) {
+    userDetectedLocalities.forEach(loc => {
+      if (isValidLocality(loc)) {
+        const lower = loc.toLowerCase().trim();
+        if (!mergedLowerSet.has(lower)) {
+          nearLocalitiesList.push(loc);
+          mergedLowerSet.add(lower);
+        }
       }
     });
   }
+
+  // 2. Also include any report localities that are strictly within 15 km of the user's current GPS location
+  if (userCoords) {
+    uniqueReportLocalities.forEach(loc => {
+      if (isValidLocality(loc)) {
+        const lower = loc.toLowerCase().trim();
+        if (!mergedLowerSet.has(lower)) {
+          const coords = getLocalityCoords(loc);
+          if (coords) {
+            const dist = getDistanceKm(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
+            if (dist <= 15) {
+              nearLocalitiesList.push(loc);
+              mergedLowerSet.add(lower);
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // If no coordinates yet (denied or loading), include unique report localities & Pune defaults
+    const candidateLocalities = Array.from(new Set([
+      ...uniqueReportLocalities,
+      ...fallbackDefaults
+    ]));
+    candidateLocalities.forEach(loc => {
+      if (isValidLocality(loc)) {
+        const lower = loc.toLowerCase().trim();
+        if (!mergedLowerSet.has(lower)) {
+          nearLocalitiesList.push(loc);
+          mergedLowerSet.add(lower);
+        }
+      }
+    });
+  }
+
+  // 3. Fallback: If still absolutely empty, load Pune defaults
+  if (nearLocalitiesList.length === 0) {
+    fallbackDefaults.forEach(loc => {
+      if (isValidLocality(loc)) {
+        const lower = loc.toLowerCase().trim();
+        if (!mergedLowerSet.has(lower)) {
+          nearLocalitiesList.push(loc);
+          mergedLowerSet.add(lower);
+        }
+      }
+    });
+  }
+
+  // Cap at 8 entries to keep UI clean and consistent
+  const nearLocalities = nearLocalitiesList.slice(0, 8);
+
+  // Filter nearLocalities to ensure no "Other" is in there (we will append it cleanly at the end)
+  const filteredNearLocalities = nearLocalities.filter(l => l.toLowerCase() !== 'other');
 
   // Compute sidebarLocalities with colors
   const sidebarLocalities: { name: string; color: string }[] = [{ name: 'All', color: 'bg-slate-300' }];
   let colorIdx = 0;
-  nearLocalities.forEach((loc) => {
+  filteredNearLocalities.forEach((loc) => {
     sidebarLocalities.push({
       name: loc,
       color: COLORS[colorIdx++ % COLORS.length]
     });
+  });
+
+  // Always append "Other" exactly once at the end
+  sidebarLocalities.push({
+    name: 'Other',
+    color: 'bg-slate-400'
   });
 
   // Metrical numbers inside right dashboard

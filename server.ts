@@ -4,6 +4,8 @@ import fs from 'fs/promises';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+// @ts-ignore
+import heicConvert from 'heic-convert';
 
 dotenv.config();
 
@@ -862,6 +864,99 @@ const DEFAULT_LOCALITIES = [
   { name: 'Wakad', lat: 18.5987, lng: 73.7689 }
 ];
 
+const PRESET_LOCALITIES = [
+  // Pune Suburbs
+  { name: 'Bavdhan', lat: 18.5080, lng: 73.7845, region: 'Pune' },
+  { name: 'Kothrud', lat: 18.5074, lng: 73.8077, region: 'Pune' },
+  { name: 'Pashan', lat: 18.5372, lng: 73.7934, region: 'Pune' },
+  { name: 'Baner', lat: 18.5590, lng: 73.7787, region: 'Pune' },
+  { name: 'Aundh', lat: 18.5580, lng: 73.8075, region: 'Pune' },
+  { name: 'Wakad', lat: 18.5987, lng: 73.7689, region: 'Pune' },
+  { name: 'Balewadi', lat: 18.5760, lng: 73.7740, region: 'Pune' },
+  { name: 'Hinjawadi', lat: 18.5913, lng: 73.7389, region: 'Pune' },
+  { name: 'Shivajinagar', lat: 18.5312, lng: 73.8445, region: 'Pune' },
+  { name: 'Viman Nagar', lat: 18.5679, lng: 73.9143, region: 'Pune' },
+  { name: 'Kharadi', lat: 18.5516, lng: 73.9348, region: 'Pune' },
+  { name: 'Kalyani Nagar', lat: 18.5463, lng: 73.9033, region: 'Pune' },
+  { name: 'Koregaon Park', lat: 18.5362, lng: 73.8940, region: 'Pune' },
+  { name: 'Pimple Saudagar', lat: 18.5971, lng: 73.7997, region: 'Pune' },
+
+  // Kerala - Kochi/Ernakulam Hyperlocal
+  { name: 'Kakkanad', lat: 10.0159, lng: 76.3419, region: 'Kerala' },
+  { name: 'Thrikkakara', lat: 10.0264, lng: 76.3268, region: 'Kerala' },
+  { name: 'Kalamassery', lat: 10.0542, lng: 76.3155, region: 'Kerala' },
+  { name: 'Edappally', lat: 10.0244, lng: 76.3079, region: 'Kerala' },
+  { name: 'Palarivattom', lat: 10.0075, lng: 76.3056, region: 'Kerala' },
+  { name: 'Kaloor', lat: 9.9986, lng: 76.2991, region: 'Kerala' },
+  { name: 'Vyttila', lat: 9.9706, lng: 76.3218, region: 'Kerala' },
+  { name: 'Aluva', lat: 10.1076, lng: 76.3504, region: 'Kerala' },
+  { name: 'Tripunithura', lat: 9.9501, lng: 76.3502, region: 'Kerala' },
+  { name: 'Fort Kochi', lat: 9.9658, lng: 76.2421, region: 'Kerala' },
+  { name: 'Kadavanthra', lat: 9.9650, lng: 76.2974, region: 'Kerala' },
+  { name: 'Panampilly Nagar', lat: 9.9620, lng: 76.2912, region: 'Kerala' },
+  { name: 'Cheranallur', lat: 10.0410, lng: 76.2890, region: 'Kerala' },
+
+  // Kerala - Trivandrum Hyperlocal
+  { name: 'Kazhakkoottam', lat: 8.5686, lng: 76.8732, region: 'Kerala' },
+  { name: 'Kowdiar', lat: 8.5244, lng: 76.9614, region: 'Kerala' },
+  { name: 'Sasthamangalam', lat: 8.5140, lng: 76.9715, region: 'Kerala' },
+  { name: 'Pattom', lat: 8.5242, lng: 76.9366, region: 'Kerala' },
+  { name: 'Vellayambalam', lat: 8.5115, lng: 76.9568, region: 'Kerala' },
+  { name: 'Peroorkada', lat: 8.5350, lng: 76.9724, region: 'Kerala' },
+  { name: 'Vattiyoorkavu', lat: 8.5188, lng: 76.9932, region: 'Kerala' },
+  { name: 'Thampanoor', lat: 8.4892, lng: 76.9531, region: 'Kerala' },
+  { name: 'East Fort', lat: 8.4815, lng: 76.9442, region: 'Kerala' },
+  { name: 'Nemom', lat: 8.4615, lng: 76.9912, region: 'Kerala' },
+
+  // Kerala - Kozhikode Hyperlocal
+  { name: 'Elathur', lat: 11.3323, lng: 75.7381, region: 'Kerala' },
+  { name: 'Beypore', lat: 11.1793, lng: 75.8037, region: 'Kerala' },
+  { name: 'Cheruvannur', lat: 11.2052, lng: 75.8193, region: 'Kerala' },
+  { name: 'Pantheerankavu', lat: 11.2330, lng: 75.8420, region: 'Kerala' },
+  { name: 'Chevayur', lat: 11.2785, lng: 75.8071, region: 'Kerala' },
+  { name: 'Kunnamangalam', lat: 11.3032, lng: 75.8765, region: 'Kerala' },
+  { name: 'Ramanattukara', lat: 11.1782, lng: 75.8580, region: 'Kerala' },
+  { name: 'Feroke', lat: 11.1720, lng: 75.8330, region: 'Kerala' },
+
+  // Kerala - Thrissur Hyperlocal
+  { name: 'Ollur', lat: 10.4851, lng: 76.2415, region: 'Kerala' },
+  { name: 'Ramavarmapuram', lat: 10.5510, lng: 76.2305, region: 'Kerala' },
+  { name: 'Kuriachira', lat: 10.5050, lng: 76.2220, region: 'Kerala' },
+  { name: 'Ayyanthole', lat: 10.5255, lng: 76.1960, region: 'Kerala' },
+  { name: 'Koorkanchira', lat: 10.5042, lng: 76.2085, region: 'Kerala' },
+  { name: 'Mannuthy', lat: 10.5312, lng: 76.2624, region: 'Kerala' },
+
+  // Bengaluru Suburbs
+  { name: 'Indiranagar', lat: 12.9719, lng: 77.6412, region: 'Bengaluru' },
+  { name: 'Koramangala', lat: 12.9352, lng: 77.6244, region: 'Bengaluru' },
+  { name: 'Jayanagar', lat: 12.9308, lng: 77.5838, region: 'Bengaluru' },
+  { name: 'HSR Layout', lat: 12.9121, lng: 77.6446, region: 'Bengaluru' },
+  { name: 'Whitefield', lat: 12.9698, lng: 77.7500, region: 'Bengaluru' },
+  { name: 'Yelahanka', lat: 13.1007, lng: 77.5963, region: 'Bengaluru' },
+  { name: 'Malleshwaram', lat: 13.0031, lng: 77.5643, region: 'Bengaluru' },
+  { name: 'Banashankari', lat: 12.9250, lng: 77.5460, region: 'Bengaluru' },
+
+  // Mumbai Suburbs
+  { name: 'Bandra', lat: 19.0596, lng: 72.8295, region: 'Mumbai' },
+  { name: 'Andheri', lat: 19.1136, lng: 72.8697, region: 'Mumbai' },
+  { name: 'Juhu', lat: 19.1023, lng: 72.8270, region: 'Mumbai' },
+  { name: 'Colaba', lat: 18.9067, lng: 72.8147, region: 'Mumbai' },
+  { name: 'Dadar', lat: 19.0178, lng: 72.8478, region: 'Mumbai' },
+  { name: 'Chembur', lat: 19.0622, lng: 72.8974, region: 'Mumbai' },
+  { name: 'Borivali', lat: 19.2349, lng: 72.8602, region: 'Mumbai' },
+  { name: 'Powai', lat: 19.1176, lng: 72.9060, region: 'Mumbai' },
+
+  // Delhi Suburbs
+  { name: 'Connaught Place', lat: 28.6304, lng: 77.2177, region: 'Delhi' },
+  { name: 'Saket', lat: 28.5244, lng: 77.2066, region: 'Delhi' },
+  { name: 'Vasant Kunj', lat: 28.5387, lng: 77.1622, region: 'Delhi' },
+  { name: 'Karol Bagh', lat: 28.6515, lng: 77.1917, region: 'Delhi' },
+  { name: 'Dwarka', lat: 28.5857, lng: 77.0498, region: 'Delhi' },
+  { name: 'Rohini', lat: 28.7159, lng: 77.1132, region: 'Delhi' },
+  { name: 'Lajpat Nagar', lat: 28.5679, lng: 77.2435, region: 'Delhi' },
+  { name: 'Hauz Khas', lat: 28.5494, lng: 77.2001, region: 'Delhi' }
+];
+
 const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371; // Radius of the earth in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -887,6 +982,56 @@ const getClosestPuneSuburb = (lat: number, lng: number): string => {
   return closest;
 };
 
+const getClosestPresetLocalities = (lat: number, lng: number): string[] => {
+  let closestPreset = PRESET_LOCALITIES[0];
+  let minDist = Infinity;
+  for (const preset of PRESET_LOCALITIES) {
+    const dist = getDistanceKm(lat, lng, preset.lat, preset.lng);
+    if (dist < minDist) {
+      minDist = dist;
+      closestPreset = preset;
+    }
+  }
+
+  // Get all presets for that closest preset's region
+  const regionPresets = PRESET_LOCALITIES.filter(p => p.region === closestPreset.region);
+  
+  // Sort them by distance from user location
+  const sorted = regionPresets.map(p => ({
+    name: p.name,
+    dist: getDistanceKm(lat, lng, p.lat, p.lng)
+  })).sort((a, b) => a.dist - b.dist);
+
+  return sorted.map(s => s.name);
+};
+
+// Memory cache to prevent duplicate Nominatim and Overpass hits
+const geocodeCache: Record<string, { locality: string; city: string; localities: string[] }> = {};
+
+// Robust server-side HEIC/HEIF conversion API endpoint
+app.post('/api/convert-heic', express.raw({ type: 'image/heic', limit: '15mb' }), async (req, res) => {
+  try {
+    const inputBuffer = req.body;
+    if (!inputBuffer || inputBuffer.length === 0) {
+      res.status(400).json({ error: 'Empty file buffer received' });
+      return;
+    }
+
+    // Convert the buffer using heic-convert
+    const outputBuffer = await heicConvert({
+      buffer: inputBuffer,
+      format: 'JPEG',
+      quality: 0.85
+    });
+
+    res.set('Content-Type', 'image/jpeg');
+    res.send(outputBuffer);
+  } catch (error: any) {
+    console.error('[server] HEIC conversion endpoint failed:', error);
+    res.status(500).json({ error: 'Failed to convert HEIC image: ' + (error.message || error) });
+  }
+});
+
 // API endpoint for reverse geocoding lat/lng to locality + city
 app.get('/api/reverse-geocode', async (req, res) => {
   try {
@@ -904,188 +1049,222 @@ app.get('/api/reverse-geocode', async (req, res) => {
       return;
     }
 
-    // Try BigDataCloud reverse geocode client first (super fast and doesn't require user agent constraints/low limits)
-    try {
-      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        const city = data.city || data.town || data.village || 'Pune';
-
-        const isValidLocalityName = (name: string, cityName: string) => {
-          if (!name || name.trim().length < 3 || name.length > 45) return false;
-          const lower = name.toLowerCase();
-          const badKeywords = [
-            'river', 'basin', 'valley', 'district', 'subdivision', 'state', 'country', 
-            'province', 'republic', 'continent', 'division', 'region', 'zone', 
-            'county', 'municipality', 'governorate', 'prefecture', 'department',
-            'taluka', 'tehsil', 'taluk', 'mandal', 'subdistrict', 'sub-district', 
-            'municipal', 'corporation', 'administrative', 'union territory', 
-            'cantonment', 'national park', 'lake', 'bay', 'ocean', 'sea', 'india', 'maharashtra', 'pune'
-          ];
-          if (badKeywords.some(kw => lower.includes(kw))) return false;
-          if (cityName && (lower === cityName.toLowerCase() || lower.includes(cityName.toLowerCase()))) return false;
-          if (/\d/.test(lower)) return false; // reject if has digits
-          return true;
-        };
-
-        let foundLocality = '';
-        const parts = data.localityInfo ? [
-          ...(data.localityInfo.informative || []),
-          ...(data.localityInfo.administrative || [])
-        ] : [];
-
-        // Sort descending by order to get most specific first (usually order >= 6)
-        parts.sort((a: any, b: any) => (b.order || 0) - (a.order || 0));
-
-        // 1. Try to find suburb, neighbourhood, quarter, village, hamlet
-        for (const p of parts) {
-          if (p.name && isValidLocalityName(p.name, city)) {
-            const desc = (p.description || '').toLowerCase();
-            if (desc.includes('suburb') || desc.includes('neighbourhood') || desc.includes('quarter') || desc.includes('village') || desc.includes('hamlet')) {
-              foundLocality = p.name;
-              break;
-            }
-          }
-        }
-
-        // 2. Try fallback to order >= 6
-        if (!foundLocality) {
-          for (const p of parts) {
-            if (p.name && isValidLocalityName(p.name, city)) {
-              if (p.order >= 6) {
-                foundLocality = p.name;
-                break;
-              }
-            }
-          }
-        }
-
-        // 3. Fallback to data.locality if valid
-        if (!foundLocality && data.locality && isValidLocalityName(data.locality, city)) {
-          foundLocality = data.locality;
-        }
-
-        // 4. Default to town or village if available
-        if (!foundLocality && data.town && isValidLocalityName(data.town, city)) {
-          foundLocality = data.town;
-        }
-        if (!foundLocality && data.village && isValidLocalityName(data.village, city)) {
-          foundLocality = data.village;
-        }
-
-        let finalLocality = foundLocality;
-        if (!finalLocality || finalLocality === 'Detected Area' || finalLocality.toLowerCase().includes('pune')) {
-          finalLocality = getClosestPuneSuburb(latitude, longitude);
-        }
-
-        // Build a unique set of all local valid localities
-        const locSet = new Set<string>();
-        locSet.add(finalLocality);
-
-        parts.forEach((p: any) => {
-          if (p.name && isValidLocalityName(p.name, city) && p.order >= 6) {
-            locSet.add(p.name);
-          }
-        });
-        if (data.locality && isValidLocalityName(data.locality, city)) {
-          locSet.add(data.locality);
-        }
-
-        const finalLocalities = Array.from(locSet).slice(0, 6);
-        res.json({
-          locality: finalLocality,
-          city: city || 'Pune',
-          localities: finalLocalities.length > 0 ? finalLocalities : [finalLocality]
-        });
-        return;
-      }
-    } catch (err) {
-      console.warn('BigDataCloud geocoder failed:', err);
+    // Cache lookup using 3 decimal places (approx. 110m precision)
+    const cacheKey = `${latitude.toFixed(3)},${longitude.toFixed(3)}`;
+    if (geocodeCache[cacheKey]) {
+      res.json(geocodeCache[cacheKey]);
+      return;
     }
 
-    // Fallback: OpenStreetMap Nominatim API
+    const isValidHyperlocalName = (name: string) => {
+      if (!name || name.trim().length < 3 || name.length > 45) return false;
+      const lower = name.toLowerCase().trim();
+      const badKeywords = [
+        'district', 'state', 'region', 'county', 'province', 'country', 'republic', 'continent', 'division', 'zone',
+        'governorate', 'prefecture', 'department', 'subdivision', 'administrative', 'union territory',
+        'india', 'maharashtra', 'kerala', 'pune', 'bengaluru', 'mumbai', 'delhi', 'chennai', 'kolkata',
+        'karnataka', 'tamil nadu', 'gujarat', 'rajasthan', 'punjab', 'goa', 'bihar', 'assam', 'haryana',
+        'himachal', 'jharkhand', 'manipur', 'meghalaya', 'mizoram', 'nagaland', 'odisha', 'sikkim',
+        'tripura', 'uttarakhand', 'telangana', 'andhra', 'ladakh', 'jammu', 'kashmir', 'lakshadweep',
+        'puducherry', 'chandigarh', 'dadra', 'nagar haveli', 'daman', 'diu', 'western zonal'
+      ];
+      if (badKeywords.some(kw => lower.includes(kw) || kw.includes(lower))) return false;
+      if (/\d/.test(lower)) return false; // reject if has digits
+      return true;
+    };
+
+    // Helper for timeout-based fetch to prevent infinite hanging
+    const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 2000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+      } catch (err) {
+        clearTimeout(id);
+        throw err;
+      }
+    };
+
+    let foundLocality = '';
+    let city = '';
+    const locSet = new Set<string>();
+
+    // Determine default city and fallback region
+    let closestPreset = PRESET_LOCALITIES[0];
+    let minDistPreset = Infinity;
+    for (const preset of PRESET_LOCALITIES) {
+      const dist = getDistanceKm(latitude, longitude, preset.lat, preset.lng);
+      if (dist < minDistPreset) {
+        minDistPreset = dist;
+        closestPreset = preset;
+      }
+    }
+    const fallbackCity = closestPreset.region === 'Kerala' ? 'Kochi' : closestPreset.region;
+
+    // 1. Query Nominatim directly with zoom=18 and addressdetails=1 to get specific address
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`;
-      const response = await fetch(url, {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en&addressdetails=1&zoom=18`;
+      const response = await fetchWithTimeout(url, {
         headers: {
-          'User-Agent': 'aistudio-build-civic-app-agent',
+          'User-Agent': 'CommunityHeroApp/1.0',
           'Accept-Language': 'en'
         }
-      });
+      }, 3500);
+      
       if (response.ok) {
         const data = await response.json();
         if (data.address) {
           const addr = data.address;
-          const city = addr.city || addr.town || addr.village || 'Pune';
-
-          const isValidLocalityName = (name: string, cityName: string) => {
-            if (!name || name.trim().length < 3 || name.length > 45) return false;
-            const lower = name.toLowerCase();
-            const badKeywords = [
-              'river', 'basin', 'valley', 'district', 'subdivision', 'state', 'country', 
-              'province', 'republic', 'continent', 'division', 'region', 'zone', 
-              'county', 'municipality', 'governorate', 'prefecture', 'department',
-              'taluka', 'tehsil', 'taluk', 'mandal', 'subdistrict', 'sub-district', 
-              'municipal', 'corporation', 'administrative', 'union territory', 
-              'cantonment', 'national park', 'lake', 'bay', 'ocean', 'sea', 'india', 'maharashtra', 'pune'
-            ];
-            if (badKeywords.some(kw => lower.includes(kw))) return false;
-            if (cityName && (lower === cityName.toLowerCase() || lower.includes(cityName.toLowerCase()))) return false;
-            if (/\d/.test(lower)) return false; // reject if has digits
-            return true;
-          };
-
-          let foundLocality = '';
-          const preferredKeys = ['suburb', 'neighbourhood', 'quarter', 'village', 'hamlet'];
-          for (const key of preferredKeys) {
-            if (addr[key] && isValidLocalityName(addr[key], city)) {
+          city = addr.city || addr.town || addr.village || fallbackCity;
+ 
+          // Priority fields
+          const priorityFields = [
+            'neighbourhood',
+            'suburb',
+            'quarter',
+            'city_district',
+            'village',
+            'town',
+            'hamlet'
+          ];
+ 
+          // Use the FIRST one of these that is present, non-empty, and valid
+          for (const key of priorityFields) {
+            if (addr[key] && isValidHyperlocalName(addr[key])) {
               foundLocality = addr[key];
               break;
             }
           }
-
-          if (!foundLocality && addr.town && isValidLocalityName(addr.town, city)) {
-            foundLocality = addr.town;
-          }
-
-          let finalLocality = foundLocality;
-          if (!finalLocality || finalLocality === 'Detected Area' || finalLocality.toLowerCase().includes('pune')) {
-            finalLocality = getClosestPuneSuburb(latitude, longitude);
-          }
-
-          const locSet = new Set<string>();
-          locSet.add(finalLocality);
-
-          preferredKeys.forEach(key => {
-            if (addr[key] && isValidLocalityName(addr[key], city)) {
+ 
+          // Gather all valid candidates
+          priorityFields.forEach(key => {
+            if (addr[key] && isValidHyperlocalName(addr[key])) {
               locSet.add(addr[key]);
             }
           });
-          if (addr.town && isValidLocalityName(addr.town, city)) {
-            locSet.add(addr.town);
-          }
-
-          const finalLocalities = Array.from(locSet).slice(0, 6);
-          res.json({
-            locality: finalLocality,
-            city: city || 'Pune',
-            localities: finalLocalities.length > 0 ? finalLocalities : [finalLocality]
-          });
-          return;
         }
       }
     } catch (err) {
-      console.warn('Nominatim geocoder failed:', err);
+      console.log('[geocoder] Nominatim service status: offline or timed out. Falling back to presets.');
+    }
+ 
+    if (!city) {
+      city = fallbackCity;
+    }
+ 
+    if (!foundLocality) {
+      foundLocality = 'Other';
+    }
+ 
+    // 2. Query Overpass API for nearby named hyperlocal places within 12km
+    let nearbyLocalities: string[] = [];
+    try {
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:10];(node["place"~"suburb|neighbourhood|village|hamlet|quarter|town"](around:12000,${latitude},${longitude});way["place"~"suburb|neighbourhood|village|hamlet|quarter|town"](around:12000,${latitude},${longitude}););out%20tags%20center;`;
+      
+      const ovResponse = await fetchWithTimeout(overpassUrl, {
+        headers: {
+          'User-Agent': 'CommunityHeroApp/1.0'
+        }
+      }, 4000);
+      
+      if (ovResponse.ok) {
+        const ovData = await ovResponse.json();
+        if (ovData && ovData.elements) {
+          const candidates: { name: string; dist: number }[] = [];
+          for (const el of ovData.elements) {
+            if (el.tags && el.tags.name) {
+              const name = el.tags.name;
+              if (isValidHyperlocalName(name)) {
+                const elLat = el.lat !== undefined ? el.lat : (el.center ? el.center.lat : null);
+                const elLng = el.lon !== undefined ? el.lon : (el.center ? el.center.lon : null);
+                let dist = 0;
+                if (elLat !== null && elLng !== null) {
+                  dist = getDistanceKm(latitude, longitude, elLat, elLng);
+                }
+                candidates.push({ name, dist });
+              }
+            }
+          }
+          
+          // Sort by distance (nearest first)
+          candidates.sort((a, b) => a.dist - b.dist);
+          
+          // Deduplicate names
+          const uniqueNames = new Set<string>();
+          for (const cand of candidates) {
+            uniqueNames.add(cand.name);
+            if (uniqueNames.size >= 8) break;
+          }
+          nearbyLocalities = Array.from(uniqueNames);
+        }
+      }
+    } catch (ovErr) {
+      console.log('[geocoder] Primary Overpass service timed out or unavailable. Trying backup...');
+      try {
+        const backupUrl = `https://overpass.kumi.systems/api/interpreter?data=[out:json][timeout:10];(node["place"~"suburb|neighbourhood|village|hamlet|quarter|town"](around:12000,${latitude},${longitude});way["place"~"suburb|neighbourhood|village|hamlet|quarter|town"](around:12000,${latitude},${longitude}););out%20tags%20center;`;
+        const ovResponse = await fetchWithTimeout(backupUrl, {
+          headers: { 'User-Agent': 'CommunityHeroApp/1.0' }
+        }, 4000);
+        if (ovResponse.ok) {
+          const ovData = await ovResponse.json();
+          if (ovData && ovData.elements) {
+            const candidates: { name: string; dist: number }[] = [];
+            for (const el of ovData.elements) {
+              if (el.tags && el.tags.name) {
+                const name = el.tags.name;
+                if (isValidHyperlocalName(name)) {
+                  const elLat = el.lat !== undefined ? el.lat : (el.center ? el.center.lat : null);
+                  const elLng = el.lon !== undefined ? el.lon : (el.center ? el.center.lon : null);
+                  let dist = 0;
+                  if (elLat !== null && elLng !== null) {
+                    dist = getDistanceKm(latitude, longitude, elLat, elLng);
+                  }
+                  candidates.push({ name, dist });
+                }
+              }
+            }
+            candidates.sort((a, b) => a.dist - b.dist);
+            const uniqueNames = new Set<string>();
+            for (const cand of candidates) {
+              uniqueNames.add(cand.name);
+              if (uniqueNames.size >= 8) break;
+            }
+            nearbyLocalities = Array.from(uniqueNames);
+          }
+        }
+      } catch (backupErr) {
+        console.log('[geocoder] Backup Overpass service timed out or unavailable. Utilizing offline local backup.');
+      }
     }
 
-    // Final fallback if both fail
-    const fallbackLoc = getClosestPuneSuburb(latitude, longitude);
-    res.json({
-      locality: fallbackLoc,
-      city: 'Pune',
-      localities: [fallbackLoc]
-    });
+    // Safe fallbacks to high-fidelity PRESET_LOCALITIES
+    if (nearbyLocalities.length === 0) {
+      nearbyLocalities = getClosestPresetLocalities(latitude, longitude);
+    }
+
+    // Always ensure the precise foundLocality is listed first if valid
+    if (foundLocality && foundLocality !== 'Other' && isValidHyperlocalName(foundLocality)) {
+      nearbyLocalities = [
+        foundLocality,
+        ...nearbyLocalities.filter(l => l.toLowerCase() !== foundLocality.toLowerCase())
+      ];
+    }
+
+    // Cap at 8 entries
+    nearbyLocalities = nearbyLocalities.slice(0, 8);
+
+    const result = {
+      locality: foundLocality,
+      city: city || fallbackCity || 'Pune',
+      localities: nearbyLocalities
+    };
+
+    // Save to cache
+    geocodeCache[cacheKey] = result;
+
+    res.json(result);
   } catch (error: any) {
     console.error('Error in reverse-geocode API:', error);
     res.status(500).json({ error: 'Failed to reverse geocode' });
